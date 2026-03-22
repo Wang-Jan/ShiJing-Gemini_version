@@ -1,65 +1,124 @@
-import React, { useState, useRef } from 'react';
-import { 
-  Brain, 
-  Upload, 
-  X, 
-  Settings2, 
-  CheckCircle2, 
-  AlertCircle, 
-  Sparkles,
+import React, { useRef, useState } from 'react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Brain,
+  CheckCircle2,
+  Clock3,
+  FileText,
   Lightbulb,
-  ArrowRight
+  ScanSearch,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  X,
 } from 'lucide-react';
-import { analyzeDesktopImage } from '../src/services/geminiService';
 import { Insight, Suggestion } from '../types';
 
 interface AIViewProps {
+  authToken: string;
+  gardenApiKey: string;
+  gardenBaseUrl: string;
   setInsights: React.Dispatch<React.SetStateAction<Insight[]>>;
 }
 
-const AIView: React.FC<AIViewProps> = ({ setInsights }) => {
-  const [loading, setLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<{
+interface AnalyzeResponse {
+  success: boolean;
+  message?: string;
+  result?: {
     score: number;
     event: string;
     action: string;
     suggestions: Suggestion[];
-  } | null>(null);
-  
+  };
+}
+
+const getScoreTone = (score: number) => {
+  if (score >= 85) {
+    return { label: '优秀', chip: 'bg-emerald-100 text-emerald-700', ring: 'from-emerald-500 to-teal-400' };
+  }
+
+  if (score >= 70) {
+    return { label: '良好', chip: 'bg-blue-100 text-blue-700', ring: 'from-blue-500 to-cyan-400' };
+  }
+
+  return { label: '待优化', chip: 'bg-amber-100 text-amber-700', ring: 'from-amber-500 to-orange-400' };
+};
+
+const AIView: React.FC<AIViewProps> = ({ authToken, gardenApiKey, gardenBaseUrl, setInsights }) => {
+  const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalyzeResponse['result'] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const readErrorMessage = async (response: Response) => {
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const payload = (await response.json().catch(() => null)) as AnalyzeResponse | null;
+      return payload?.message || '分析失败';
+    }
+
+    const text = await response.text().catch(() => '');
+    return text.trim() || '分析失败';
+  };
+
   const startAnalysis = async () => {
-    if (!selectedImage) return;
-    
+    if (!selectedImage) {
+      return;
+    }
+
     setLoading(true);
     setShowResult(false);
-    
+
     try {
-      // 优先从 localStorage 获取 Garden API Key，如果没有则使用默认的 Gemini Key
-      const customKey = localStorage.getItem('garden_api_key');
-      const result = await analyzeDesktopImage(selectedImage, customKey || undefined);
-      setAnalysisResult(result);
-      
-      // Add to shared insights
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+          ...(gardenApiKey.trim() ? { 'X-Garden-Api-Key': gardenApiKey.trim() } : {}),
+          ...(gardenBaseUrl.trim() ? { 'X-Garden-Base-Url': gardenBaseUrl.trim() } : {}),
+        },
+        body: JSON.stringify({ image: selectedImage }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const data = (await response.json()) as AnalyzeResponse;
+
+      if (!data.success || !data.result) {
+        throw new Error(data.message || '分析失败');
+      }
+
+      setAnalysisResult(data.result);
+
       const newInsight: Insight = {
         id: Date.now().toString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: result.score > 80 ? 'success' : result.score > 60 ? 'info' : 'warn',
-        event: result.event,
-        action: result.action,
-        score: result.score,
+        type: data.result.score > 80 ? 'success' : data.result.score > 60 ? 'info' : 'warn',
+        event: data.result.event,
+        action: data.result.action,
+        score: data.result.score,
         imageUrl: selectedImage,
-        suggestions: result.suggestions
+        suggestions: data.result.suggestions,
       };
-      
-      setInsights(prev => [newInsight, ...prev]);
+
+      setInsights((prev) => [newInsight, ...prev]);
       setShowResult(true);
     } catch (error) {
-      console.error("Analysis failed:", error);
-      alert("分析失败，请检查网络或 API 配置。");
+      const rawMessage = error instanceof Error ? error.message : '分析失败';
+      const message =
+        /failed to fetch|fetch failed/i.test(rawMessage)
+          ? '无法连接到分析服务。请检查项目后端是否仍在运行，以及 Garden Base URL 是否可从当前电脑访问。'
+          : rawMessage;
+      console.error('Analysis failed:', error);
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -67,61 +126,66 @@ const AIView: React.FC<AIViewProps> = ({ setInsights }) => {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-        setShowResult(false);
-        setAnalysisResult(null);
-      };
-      reader.readAsDataURL(file);
+
+    if (!file) {
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+      setShowResult(false);
+      setAnalysisResult(null);
+    };
+    reader.readAsDataURL(file);
   };
+
+  const scoreTone = analysisResult ? getScoreTone(analysisResult.score) : null;
 
   return (
     <div className="p-4 space-y-6 pb-24">
-      {/* 头部标题区 */}
       <section className="flex justify-between items-center px-1">
         <div>
           <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">桌面智能分析</h2>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Gemini AI 诊断系统</p>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Garden AI Diagnostics</p>
         </div>
-        <button 
+        <button
           type="button"
-          onClick={() => setShowConfig(!showConfig)}
+          onClick={() => setShowConfig((prev) => !prev)}
           className={`p-2 rounded-xl transition-all ${showConfig ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-800'}`}
         >
           <Settings2 size={20} />
         </button>
       </section>
 
-      {/* 隐藏的 API 配置区 */}
       {showConfig && (
-        <div className="bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 animate-in slide-in-from-top-2 duration-300">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">后端开发者选项</p>
-          <div className="space-y-2">
-            <p className="text-[10px] text-slate-500">当前使用 Gemini-3-Flash 模型进行实时分析。</p>
-          </div>
+        <div className="bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 animate-in slide-in-from-top-2 duration-300 space-y-2">
+          <p className="text-[10px] font-bold text-slate-400 uppercase">分析说明</p>
+          <p className="text-xs text-slate-500">
+            图片会先上传到当前项目后端，再由后端调用 Garden 模型服务进行分析。
+          </p>
+          <p className="text-xs text-slate-500">
+            如果你在设置页填写了专用 API Key 和 Base URL，本页会优先使用那组配置。
+          </p>
         </div>
       )}
 
-      {/* 图片选择/预览区 */}
       {!selectedImage ? (
-        <div 
+        <div
           onClick={() => fileInputRef.current?.click()}
           className="aspect-square w-full border-4 border-dashed border-slate-200 dark:border-slate-800 rounded-[2.5rem] flex flex-col items-center justify-center bg-white dark:bg-slate-900/50 active:scale-95 transition-all group"
         >
           <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
             <Upload className="text-blue-600 dark:text-blue-400" size={32} />
           </div>
-          <span className="text-slate-800 dark:text-slate-200 font-bold">拍摄/上传桌面照片</span>
-          <p className="text-slate-400 text-xs mt-2 text-center px-10">AI 将识别杂物、水渍及摆放位置<br/>并生成专属优化方案</p>
+          <span className="text-slate-800 dark:text-slate-200 font-bold">上传或拍摄桌面图片</span>
+          <p className="text-slate-400 text-xs mt-2 text-center px-10">Garden 将输出正式分析报告和清洁建议</p>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="relative rounded-[2.5rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl aspect-square bg-slate-200">
             <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-            <button 
+            <button
               type="button"
               onClick={() => {
                 setSelectedImage(null);
@@ -132,107 +196,129 @@ const AIView: React.FC<AIViewProps> = ({ setInsights }) => {
             >
               <X size={20} />
             </button>
-            
+
             {loading && (
-              <div className="absolute inset-0 bg-blue-600/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
+              <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] flex flex-col items-center justify-center">
                 <div className="relative">
                   <div className="w-20 h-20 border-4 border-white/30 border-t-white rounded-full animate-spin" />
                   <Brain className="absolute inset-0 m-auto text-white animate-pulse" size={32} />
                 </div>
-                <p className="text-white font-bold mt-4 text-sm tracking-widest">GEMINI 正在扫描...</p>
+                <p className="text-white font-bold mt-4 text-sm tracking-widest">GARDEN 正在生成分析报告...</p>
               </div>
             )}
           </div>
 
           {!loading && !showResult && (
-            <button 
+            <button
               type="button"
               onClick={startAnalysis}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-3xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-200 dark:shadow-none"
             >
               <Sparkles size={24} />
-              立即开始 AI 诊断
+              开始生成报告
             </button>
           )}
         </div>
       )}
 
-      {/* 分析结果展示区 */}
-      {showResult && analysisResult && (
-        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 space-y-6">
-          {/* 评分卡片 */}
-          <section className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full -mr-16 -mt-16" />
-             <div className="flex items-center justify-between">
+      {showResult && analysisResult && scoreTone && (
+        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 space-y-5">
+          <section className="rounded-[2rem] overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+            <div className="px-5 pt-5 pb-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">整洁度评分</h3>
-                  <div className="flex items-end gap-2">
-                    <span className="text-6xl font-black text-slate-800 dark:text-slate-100 italic">{analysisResult.score}</span>
-                    <span className="text-slate-400 font-bold mb-2">/ 100</span>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-slate-300">
+                    <FileText size={14} />
+                    Garden Report
                   </div>
+                  <h3 className="mt-3 text-2xl font-black">桌面诊断报告</h3>
+                  <p className="mt-2 text-sm text-slate-300 leading-relaxed">{analysisResult.event}</p>
                 </div>
-                <div className="text-right">
-                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-black mb-2 ${
-                    analysisResult.score > 80 ? 'bg-green-100 text-green-600' : 
-                    analysisResult.score > 60 ? 'bg-blue-100 text-blue-600' : 
-                    'bg-orange-100 text-orange-600'
-                  }`}>
-                    状态：{analysisResult.score > 80 ? '优良' : analysisResult.score > 60 ? '良好' : '需改进'}
+                <div className={`px-3 py-1.5 rounded-full text-xs font-black ${scoreTone.chip}`}>{scoreTone.label}</div>
+              </div>
+            </div>
+
+            <div className="p-5 grid grid-cols-[110px,1fr] gap-4 items-center">
+              <div className={`aspect-square rounded-[1.75rem] bg-gradient-to-br ${scoreTone.ring} p-[1px]`}>
+                <div className="w-full h-full rounded-[1.7rem] bg-white dark:bg-slate-950 flex flex-col items-center justify-center">
+                  <span className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Score</span>
+                  <span className="text-4xl font-black text-slate-900 dark:text-slate-100 italic">{analysisResult.score}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-slate-400">
+                    <Clock3 size={14} />
+                    生成时间
                   </div>
-                  <p className="text-[10px] text-slate-400 leading-tight">基于 AI 视觉识别结果</p>
+                  <p className="mt-2 text-sm font-bold text-slate-800 dark:text-slate-100">{new Date().toLocaleString()}</p>
                 </div>
-             </div>
+                <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-slate-400">
+                    <ShieldCheck size={14} />
+                    模型
+                  </div>
+                  <p className="mt-2 text-sm font-bold text-slate-800 dark:text-slate-100">Garden Vision</p>
+                </div>
+              </div>
+            </div>
           </section>
 
-          {/* 诊断详情 */}
           <section className="grid grid-cols-2 gap-4">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-3xl border border-blue-100 dark:border-blue-800">
-               <div className="flex items-center gap-2 mb-2">
-                 <CheckCircle2 size={16} className="text-blue-600" />
-                 <span className="text-xs font-bold text-blue-900 dark:text-blue-100">核心事件</span>
-               </div>
-               <p className="text-[10px] text-blue-700 dark:text-blue-300 leading-relaxed font-medium">{analysisResult.event}</p>
+            <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-900/40 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <ScanSearch size={18} className="text-blue-600" />
+                <span className="text-sm font-black text-blue-900 dark:text-blue-100">核心发现</span>
+              </div>
+              <p className="text-sm leading-relaxed text-blue-800 dark:text-blue-200">{analysisResult.event}</p>
             </div>
-            <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-3xl border border-orange-100 dark:border-orange-800">
-               <div className="flex items-center gap-2 mb-2">
-                 <AlertCircle size={16} className="text-orange-600" />
-                 <span className="text-xs font-bold text-orange-900 dark:text-orange-100">行动建议</span>
-               </div>
-               <p className="text-[10px] text-orange-700 dark:text-orange-300 leading-relaxed font-medium">{analysisResult.action}</p>
+            <div className="rounded-[1.75rem] border border-amber-100 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-900/40 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle size={18} className="text-amber-600" />
+                <span className="text-sm font-black text-amber-900 dark:text-amber-100">建议动作</span>
+              </div>
+              <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-200">{analysisResult.action}</p>
             </div>
           </section>
 
-          {/* 详细优化方案列表 */}
-          <section>
-            <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 mb-4 px-1">
+          <section className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
               <Lightbulb size={18} className="text-yellow-500" />
-              AI 深度优化方案
-            </h3>
+              <h3 className="text-base font-black text-slate-900 dark:text-slate-100">优化建议清单</h3>
+            </div>
             <div className="space-y-3">
               {analysisResult.suggestions.map((item, i) => (
-                <div key={i} className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center justify-between group active:scale-95 transition-all">
-                  <div className="flex gap-4 items-center">
-                    <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-300">
-                      0{i+1}
+                <div key={`${item.label}-${i}`} className="rounded-[1.5rem] border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-sm font-black shrink-0">
+                        {String(i + 1).padStart(2, '0')}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">{item.label}</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{item.desc}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.label}</h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{item.desc}</p>
+                    <div className="px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 text-[11px] font-black shrink-0">
+                      {item.impact}
                     </div>
-                  </div>
-                  <div className="text-right shrink-0 ml-2">
-                    <span className="text-[10px] font-black text-blue-600">{item.impact}</span>
                   </div>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* 底部动作条 */}
-          <button 
+          <div className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-900/40 p-4 flex items-start gap-3">
+            <CheckCircle2 size={18} className="text-emerald-600 mt-0.5" />
+            <p className="text-sm leading-relaxed text-emerald-800 dark:text-emerald-200">
+              分析请求由本地项目后端发起。如果这里再次失败，请检查 `npm run dev` 的终端输出，以及设置页里的 Base URL 是否可从本机 Node 服务访问。
+            </p>
+          </div>
+
+          <button
             type="button"
             onClick={() => setSelectedImage(null)}
-            className="w-full bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 py-4 rounded-3xl font-bold flex items-center justify-center gap-2"
+            className="w-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 py-4 rounded-3xl font-bold flex items-center justify-center gap-2"
           >
             重新分析
             <ArrowRight size={18} />
@@ -240,20 +326,18 @@ const AIView: React.FC<AIViewProps> = ({ setInsights }) => {
         </div>
       )}
 
-      {/* 底部说明 */}
-      <div className="text-center px-8">
+      <div className="text-center px-6">
         <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic">
-          注：当前使用 Gemini AI 视觉模型。
-          分析结果仅供参考，请结合实际情况进行整理。
+          当前分析由后端转发到 Garden 模型服务完成。设置页里的 API Key 和 Base URL 仅作为当前设备的本地覆盖配置。
         </p>
       </div>
 
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleImageUpload} 
-        accept="image/*" 
-        className="hidden" 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImageUpload}
+        accept="image/*"
+        className="hidden"
       />
     </div>
   );

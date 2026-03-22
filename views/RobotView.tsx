@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Trash2, LayoutGrid, Play, Power, Loader2, Battery, Thermometer } from 'lucide-react';
 
@@ -9,20 +8,19 @@ const RobotView: React.FC = () => {
     setTaskStatus(type);
     setTimeout(() => {
       setTaskStatus('idle');
-      alert(`任务: ${type === 'cleaning' ? '清理垃圾' : '整理桌面'} 已完成！`);
+      alert(`任务：${type === 'cleaning' ? '收纳清理' : '物品归位'} 已完成。`);
     }, 5000);
   };
 
   return (
     <div className="p-4 space-y-6">
-      {/* 状态看板 */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between transition-colors">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center relative">
             <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-400/10 rounded-2xl ${taskStatus !== 'idle' ? 'animate-ping' : ''}`} />
-            <img 
-              src="https://img.icons8.com/color/96/000000/roomba.png" 
-              alt="robot" 
+            <img
+              src="https://img.icons8.com/color/96/000000/roomba.png"
+              alt="robot"
               className="w-12 h-12 relative z-10"
             />
           </div>
@@ -58,17 +56,16 @@ const RobotView: React.FC = () => {
         </div>
       </div>
 
-      {/* 核心功能指令区 */}
       <div className="space-y-4">
         <h3 className="font-bold text-slate-800 dark:text-slate-200 px-2">核心指令</h3>
-        
-        <button 
+
+        <button
           type="button"
           onClick={() => handleCommand('cleaning')}
           disabled={taskStatus !== 'idle'}
           className={`w-full p-5 rounded-2xl flex items-center justify-between transition-all active:scale-95 shadow-md ${
-            taskStatus === 'cleaning' 
-              ? 'bg-blue-600 text-white' 
+            taskStatus === 'cleaning'
+              ? 'bg-blue-600 text-white'
               : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800'
           }`}
         >
@@ -79,20 +76,20 @@ const RobotView: React.FC = () => {
             <div className="text-left">
               <div className="font-bold">收纳清理</div>
               <div className={`text-xs ${taskStatus === 'cleaning' ? 'text-blue-100' : 'text-slate-400 dark:text-slate-500'}`}>
-                收拾桌面及地面的垃圾
+                收拾桌面和周边的零散物品
               </div>
             </div>
           </div>
           {taskStatus === 'cleaning' ? <Loader2 className="animate-spin" /> : <Play size={20} className="text-slate-300 dark:text-slate-600" />}
         </button>
 
-        <button 
+        <button
           type="button"
           onClick={() => handleCommand('organizing')}
           disabled={taskStatus !== 'idle'}
           className={`w-full p-5 rounded-2xl flex items-center justify-between transition-all active:scale-95 shadow-md ${
-            taskStatus === 'organizing' 
-              ? 'bg-indigo-600 text-white' 
+            taskStatus === 'organizing'
+              ? 'bg-indigo-600 text-white'
               : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800'
           }`}
         >
@@ -103,7 +100,7 @@ const RobotView: React.FC = () => {
             <div className="text-left">
               <div className="font-bold">物品归位</div>
               <div className={`text-xs ${taskStatus === 'organizing' ? 'text-indigo-100' : 'text-slate-400 dark:text-slate-500'}`}>
-                检测异常并整理桌面物品
+                根据分析结果模拟整理桌面物品
               </div>
             </div>
           </div>
@@ -117,8 +114,10 @@ const RobotView: React.FC = () => {
           <p className="text-sm text-slate-400 dark:text-slate-600 italic">暂无进行中的任务</p>
         ) : (
           <div className="flex items-center gap-3">
-             <Loader2 size={16} className="text-blue-500 dark:text-blue-400 animate-spin" />
-             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">正在执行：{taskStatus === 'cleaning' ? '收拾垃圾' : '桌面整理'}</span>
+            <Loader2 size={16} className="text-blue-500 dark:text-blue-400 animate-spin" />
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              正在执行：{taskStatus === 'cleaning' ? '收纳清理' : '物品归位'}
+            </span>
           </div>
         )}
       </div>

@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.1.4",
   "type": "module",
-  "description": "Desktop Assistant - Vercel Fix",
+  "description": "Shi Jing desktop cleaning assistant",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -11,16 +11,19 @@
     "dev": "npx tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "migrate:mysql": "npx tsx scripts/migrate-sqlite-to-mysql.ts",
+    "reset-password": "npx tsx scripts/reset-password.ts"
   },
   "dependencies": {
-    "@google/genai": "^1.46.0",
     "bcryptjs": "^3.0.3",
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.460.0",
+    "mysql2": "^3.20.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0",

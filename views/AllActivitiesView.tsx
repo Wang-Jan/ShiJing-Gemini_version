@@ -1,8 +1,7 @@
-
 import React from 'react';
-import { Insight } from '../types';
-import { Activity, ChevronLeft, Bell } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Insight } from '../types';
 
 interface AllActivitiesViewProps {
   insights: Insight[];
@@ -14,13 +13,14 @@ const AllActivitiesView: React.FC<AllActivitiesViewProps> = ({ insights }) => {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center gap-4 mb-6">
-        <button 
+        <button
+          type="button"
           onClick={() => navigate(-1)}
           className="p-2 bg-white dark:bg-slate-900 rounded-full shadow-sm border border-slate-100 dark:border-slate-800"
         >
           <ChevronLeft size={20} />
         </button>
-        <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">所有动态</h2>
+        <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">全部动态</h2>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -40,8 +40,8 @@ const AllActivitiesView: React.FC<AllActivitiesViewProps> = ({ insights }) => {
                 )}
               </div>
               <div className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${
-                item.type === 'warn' ? 'bg-orange-400' : 
-                item.type === 'success' ? 'bg-green-400' : 
+                item.type === 'warn' ? 'bg-orange-400' :
+                item.type === 'success' ? 'bg-green-400' :
                 'bg-blue-400'
               }`} />
             </div>

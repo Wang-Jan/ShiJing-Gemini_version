@@ -1,19 +1,33 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { User, Lock, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AuthUser } from '../types';
 
 interface LoginViewProps {
-  onLogin: (user: any) => void;
+  onLogin: (user: AuthUser, token: string) => void;
+}
+
+interface LoginLocationState {
+  accountId?: string;
 }
 
 const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [accountId, setAccountId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
+
+  useEffect(() => {
+    const state = location.state as LoginLocationState | null;
+
+    if (state?.accountId) {
+      setAccountId(state.accountId);
+    }
+  }, [location.state]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,17 +38,19 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId, password }),
+        body: JSON.stringify({ accountId: accountId.trim(), password }),
       });
-
       const data = await response.json();
-      if (data.success) {
-        onLogin(data.user);
-      } else {
-        setError(data.message || '登录失败，请检查账号和密码');
+
+      if (!response.ok || !data.success || !data.user || !data.token) {
+        setError(data.message || '登录失败，请检查账号和密码。');
+        return;
       }
-    } catch (err) {
-      setError('网络连接失败，请稍后再试');
+
+      onLogin(data.user as AuthUser, data.token as string);
+      navigate('/', { replace: true });
+    } catch {
+      setError('网络连接失败，请稍后再试。');
     } finally {
       setLoading(false);
     }
@@ -42,14 +58,14 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 flex flex-col justify-center">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full mx-auto space-y-8"
       >
         <div className="text-center">
           <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight">欢迎回来</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">请登录您的视净账号</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">请输入注册成功后获得的 7 位数字账号和密码</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -61,6 +77,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               <input
                 type="text"
                 required
+                inputMode="numeric"
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
                 className="block w-full pl-11 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
@@ -78,11 +95,11 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block w-full pl-11 pr-12 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                placeholder="请输入密码"
+                placeholder="请输入注册时设置的密码"
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPassword((value) => !value)}
                 className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -91,7 +108,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           </div>
 
           {error && (
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="text-red-500 text-sm font-bold text-center"
@@ -104,7 +121,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             <button
               type="button"
               className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline"
-              onClick={() => alert('忘记密码功能暂未开放')}
+              onClick={() => alert('忘记密码功能暂未开放，请前往“设置 - 隐私与安全”修改密码。')}
             >
               忘记密码？
             </button>
@@ -127,6 +144,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         <p className="text-center text-slate-500 dark:text-slate-400 font-medium">
           还没有账号？{' '}
           <button
+            type="button"
             onClick={() => navigate('/register')}
             className="text-blue-600 dark:text-blue-400 font-black hover:underline"
           >
