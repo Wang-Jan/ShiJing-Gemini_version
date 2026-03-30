@@ -238,14 +238,14 @@ const AIView: React.FC<AIViewProps> = ({ authToken, gardenApiKey, gardenBaseUrl,
               </div>
             </div>
 
-            <div className="p-5 grid grid-cols-[110px,1fr] gap-4 items-center">
-              <div className={`aspect-square rounded-[1.75rem] bg-gradient-to-br ${scoreTone.ring} p-[1px]`}>
+            <div className="p-5 grid grid-cols-1 gap-4 items-start sm:grid-cols-[110px,1fr] sm:items-center">
+              <div className={`aspect-square w-[110px] rounded-[1.75rem] bg-gradient-to-br ${scoreTone.ring} p-[1px] mx-auto sm:mx-0`}>
                 <div className="w-full h-full rounded-[1.7rem] bg-white dark:bg-slate-950 flex flex-col items-center justify-center">
                   <span className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Score</span>
                   <span className="text-4xl font-black text-slate-900 dark:text-slate-100 italic">{analysisResult.score}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4">
                   <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-slate-400">
                     <Clock3 size={14} />
@@ -264,7 +264,7 @@ const AIView: React.FC<AIViewProps> = ({ authToken, gardenApiKey, gardenBaseUrl,
             </div>
           </section>
 
-          <section className="grid grid-cols-2 gap-4">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-900/40 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <ScanSearch size={18} className="text-blue-600" />
@@ -289,17 +289,17 @@ const AIView: React.FC<AIViewProps> = ({ authToken, gardenApiKey, gardenBaseUrl,
             <div className="space-y-3">
               {analysisResult.suggestions.map((item, i) => (
                 <div key={`${item.label}-${i}`} className="rounded-[1.5rem] border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 gap-3">
                       <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-sm font-black shrink-0">
                         {String(i + 1).padStart(2, '0')}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">{item.label}</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{item.desc}</p>
                       </div>
                     </div>
-                    <div className="px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 text-[11px] font-black shrink-0">
+                    <div className="self-start max-w-full break-words px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 text-[11px] font-black sm:max-w-[180px]">
                       {item.impact}
                     </div>
                   </div>
